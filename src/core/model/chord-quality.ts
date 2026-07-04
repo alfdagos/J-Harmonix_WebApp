@@ -22,6 +22,7 @@ export class ChordQuality {
   static readonly HALF_DIMINISHED       = new ChordQuality('m7b5',  [0, 3, 6, 10]);
   static readonly DIMINISHED_SEVENTH    = new ChordQuality('dim7',  [0, 3, 6, 9]);
   static readonly MINOR_MAJOR_SEVENTH   = new ChordQuality('mMaj7', [0, 3, 7, 11]);
+  static readonly MAJOR_SEVENTH_SHARP_FIVE = new ChordQuality('maj7#5', [0, 4, 8, 11]);
 
   // Altered dominant
   static readonly DOM_SEVENTH_FLAT_NINE     = new ChordQuality('7b9',   [0, 4, 7, 10, 13]);

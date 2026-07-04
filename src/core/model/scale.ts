@@ -3,36 +3,6 @@ import { ScaleType } from './scale-type';
 import { Chord } from './chord';
 import { ChordQuality } from './chord-quality';
 
-const MAJOR_DIATONIC_7THS: readonly ChordQuality[] = [
-  ChordQuality.MAJOR_SEVENTH,     // I
-  ChordQuality.MINOR_SEVENTH,     // II
-  ChordQuality.MINOR_SEVENTH,     // III
-  ChordQuality.MAJOR_SEVENTH,     // IV
-  ChordQuality.DOMINANT_SEVENTH,  // V
-  ChordQuality.MINOR_SEVENTH,     // VI
-  ChordQuality.HALF_DIMINISHED,   // VII
-];
-
-const NATURAL_MINOR_DIATONIC_7THS: readonly ChordQuality[] = [
-  ChordQuality.MINOR_SEVENTH,     // I
-  ChordQuality.HALF_DIMINISHED,   // II
-  ChordQuality.MAJOR_SEVENTH,     // III
-  ChordQuality.MINOR_SEVENTH,     // IV
-  ChordQuality.MINOR_SEVENTH,     // V
-  ChordQuality.MAJOR_SEVENTH,     // VI
-  ChordQuality.DOMINANT_SEVENTH,  // VII
-];
-
-const HARMONIC_MINOR_DIATONIC_7THS: readonly ChordQuality[] = [
-  ChordQuality.MINOR_MAJOR_SEVENTH,  // I
-  ChordQuality.HALF_DIMINISHED,      // II
-  ChordQuality.AUG_TRIAD,            // III
-  ChordQuality.MINOR_SEVENTH,        // IV
-  ChordQuality.DOMINANT_SEVENTH,     // V
-  ChordQuality.MAJOR_SEVENTH,        // VI
-  ChordQuality.DIMINISHED_SEVENTH,   // VII
-];
-
 export class Scale {
   readonly tonic: Note;
   readonly type: ScaleType;
@@ -81,25 +51,40 @@ export class Scale {
     return Chord.of(root, quality);
   }
 
+  /**
+   * Builds the diatonic seventh chord on `degree` by stacking scale thirds
+   * (root, 3rd, 5th, 7th) and classifying it from the ACTUAL third, fifth and
+   * seventh intervals. Unlike a per-degree lookup this stays correct for every
+   * heptatonic scale — including the modes and melodic minor, where the seventh
+   * is what distinguishes e.g. a dominant 7th from a major 7th.
+   */
   private resolveQuality(degree: number): ChordQuality {
-    if (this.type === ScaleType.MAJOR)          return MAJOR_DIATONIC_7THS[degree % 7];
-    if (this.type === ScaleType.NATURAL_MINOR)  return NATURAL_MINOR_DIATONIC_7THS[degree % 7];
-    if (this.type === ScaleType.HARMONIC_MINOR) return HARMONIC_MINOR_DIATONIC_7THS[degree % 7];
-    return this.genericQuality(degree);
+    const size    = this.notes.length;
+    const root    = this.notes[degree % size];
+    const third   = this.notes[(degree + 2) % size];
+    const fifth   = this.notes[(degree + 4) % size];
+    const seventh = this.notes[(degree + 6) % size];
+    return Scale.classifySeventh(
+      root.intervalTo(third),
+      root.intervalTo(fifth),
+      root.intervalTo(seventh),
+    );
   }
 
-  private genericQuality(degree: number): ChordQuality {
-    const size = this.notes.length;
-    const r = this.notes[degree % size];
-    const t = this.notes[(degree + 2) % size];
-    const f = this.notes[(degree + 4) % size];
-    const i3 = r.intervalTo(t);
-    const i5 = r.intervalTo(f);
-    if (i3 === 4 && i5 === 7)  return ChordQuality.MAJOR_SEVENTH;
-    if (i3 === 3 && i5 === 7)  return ChordQuality.MINOR_SEVENTH;
-    if (i3 === 3 && i5 === 6)  return ChordQuality.HALF_DIMINISHED;
-    if (i3 === 4 && i5 === 10) return ChordQuality.DOMINANT_SEVENTH;
-    return ChordQuality.MAJOR_SEVENTH;
+  private static classifySeventh(i3: number, i5: number, i7: number): ChordQuality {
+    if (i5 === 7) { // perfect fifth
+      if (i3 === 4) return i7 === 10 ? ChordQuality.DOMINANT_SEVENTH : ChordQuality.MAJOR_SEVENTH;
+      if (i3 === 3) return i7 === 11 ? ChordQuality.MINOR_MAJOR_SEVENTH : ChordQuality.MINOR_SEVENTH;
+    }
+    if (i5 === 6) { // diminished fifth
+      if (i3 === 3) return i7 === 9 ? ChordQuality.DIMINISHED_SEVENTH : ChordQuality.HALF_DIMINISHED;
+      if (i3 === 4) return ChordQuality.DOM_SEVENTH_FLAT_FIVE;
+    }
+    if (i5 === 8) { // augmented fifth
+      if (i3 === 4) return i7 === 11 ? ChordQuality.MAJOR_SEVENTH_SHARP_FIVE : ChordQuality.AUG_TRIAD;
+    }
+    // Fallback for non-tertian scales (pentatonic, blues …)
+    return i3 === 3 ? ChordQuality.MINOR_SEVENTH : ChordQuality.MAJOR_SEVENTH;
   }
 
   toString(): string {

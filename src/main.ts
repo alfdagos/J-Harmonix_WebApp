@@ -128,6 +128,7 @@ interface State {
   style:          HarmonyStyle | null;
   complexity:     ComplexityLevel | null;
   modulation:     ModulationFrequency | null;
+  accidental:     'sharp' | 'flat' | null;  // null = auto (key convention)
   lastSeed:       number;
   revealed:       number;   // highest step index unlocked (0-based)
 }
@@ -144,6 +145,7 @@ const state: State = {
   style:      null,
   complexity: null,
   modulation: null,
+  accidental: null,
   lastSeed:   0,
   revealed:   0,
 };
@@ -182,6 +184,35 @@ function showToast(msg: string) {
 }
 
 // ============================================================
+// NOTATION (♯ / ♭ preference)
+// ============================================================
+
+/** Whether the output should be spelled with flats, honouring an explicit
+ *  user choice and otherwise falling back to the key's natural convention. */
+function resolvedUseFlats(): boolean {
+  if (state.accidental === 'flat')  return true;
+  if (state.accidental === 'sharp') return false;
+  if (state.tonic && state.scaleType) return KeySignature.of(state.tonic, state.scaleType).usesFlats;
+  if (state.tonic)                    return KeySignature.of(state.tonic, ScaleType.MAJOR).usesFlats;
+  return false;
+}
+
+/** Render '#'/'b' as proper ♯/♭ glyphs for display (not for copied text). */
+function pretty(name: string): string {
+  return name.replace('#', '♯').replace('b', '♭');
+}
+
+/** Highlight the accidental button matching the resolved preference. */
+function updateNotationToggle() {
+  const useFlats = resolvedUseFlats();
+  qa('[data-action="set-accidental"]').forEach(el => {
+    const on = (el.dataset.value === 'flat') === useFlats;
+    el.classList.toggle('selected', on);
+    el.setAttribute('aria-pressed', String(on));
+  });
+}
+
+// ============================================================
 // PROGRESSIVE REVEAL
 // ============================================================
 
@@ -190,7 +221,9 @@ function stepValueLabel(idx: number): string {
   switch (idx) {
     case 0:
       if (!state.tonic) return '';
-      return SHARP_DISP[state.tonic] + (FLAT_ALT[state.tonic] ? ` / ${FLAT_ALT[state.tonic]}` : '');
+      return resolvedUseFlats() && FLAT_ALT[state.tonic]
+        ? FLAT_ALT[state.tonic]
+        : SHARP_DISP[state.tonic];
     case 1:
       if (!state.scaleType) return '';
       for (const g of SCALE_GROUPS)
@@ -391,6 +424,14 @@ function buildAppHTML(): string {
         <div class="note-grid" role="group" aria-label="Select tonic note">
           ${buildNoteGrid()}
         </div>
+        <div class="notation-row" id="notation-row">
+          <span class="notation-label">Notation</span>
+          <div class="notation-toggle" role="group" aria-label="Accidental preference">
+            <button class="notation-btn" data-action="set-accidental" data-value="sharp" aria-pressed="false">♯&nbsp;Sharps</button>
+            <button class="notation-btn" data-action="set-accidental" data-value="flat" aria-pressed="false">♭&nbsp;Flats</button>
+          </div>
+          <span class="notation-hint">how the chords are spelled</span>
+        </div>
       </section>
 
       <!-- Step 2: Scale -->
@@ -482,8 +523,9 @@ function currentFormValue(): string {
 function renderOutput(progressions: Progression[], seed: number): string {
   const formValue = currentFormValue();
   const styleName = STYLE_OPTIONS.find(s => s.key === state.style)?.label ?? state.style;
+  const useFlats  = resolvedUseFlats();
   const key       = KeySignature.of(state.tonic!, state.scaleType!);
-  const keyLabel  = `${key.spell(key.tonic)} ${state.scaleType!.displayName.toUpperCase()}`;
+  const keyLabel  = `${pretty(key.spellWith(key.tonic, useFlats))} ${state.scaleType!.displayName.toUpperCase()}`;
 
   const banner = `
     <div class="output-banner">
@@ -504,7 +546,7 @@ function renderOutput(progressions: Progression[], seed: number): string {
   const sections = progressions.map((prog, pi) => {
     const chips = prog.chords.map((chord, ci) => {
       const delay = (pi * 0.06 + ci * 0.035).toFixed(3);
-      const root    = key.spell(chord.root);
+      const root    = pretty(key.spellWith(chord.root, useFlats));
       const quality = chord.quality.symbol;
       return `
         <div class="chord-chip" style="animation-delay:${delay}s" title="${root}${quality}">
@@ -536,12 +578,13 @@ function renderOutput(progressions: Progression[], seed: number): string {
 function buildPlainText(progressions: Progression[]): string {
   const bar     = '═'.repeat(60);
   const form    = currentFormValue().toUpperCase();
-  const key     = KeySignature.of(state.tonic!, state.scaleType!);
-  const keyName = `${key.spell(key.tonic)} ${state.scaleType!.displayName.toUpperCase()}`;
+  const useFlats = resolvedUseFlats();
+  const key      = KeySignature.of(state.tonic!, state.scaleType!);
+  const keyName  = `${key.spellWith(key.tonic, useFlats)} ${state.scaleType!.displayName.toUpperCase()}`;
   let out = `${bar}\n  J-Harmonix  ·  Key: ${keyName}  ·  Form: ${form}\n${bar}\n\n`;
   for (const prog of progressions) {
     if (prog.sectionLabel) out += `[${prog.sectionLabel}]\n`;
-    out += '| ' + prog.chords.map(c => key.spell(c.root) + c.quality.symbol).join(' | ') + ' |\n\n';
+    out += '| ' + prog.chords.map(c => key.spellWith(c.root, useFlats) + c.quality.symbol).join(' | ') + ' |\n\n';
   }
   return out.trim();
 }
@@ -648,11 +691,43 @@ function setupEvents(app: HTMLElement) {
         state.tonic = value;
         setSelected('note', value);
         completeStep(0);
+        // Reveal the ♯/♭ notation toggle now that there is a key to spell.
+        q('#notation-row')?.classList.add('revealed');
+        updateNotationToggle();
+        break;
+      }
+      case 'set-accidental': {
+        state.accidental = value as 'sharp' | 'flat';
+        updateNotationToggle();
+        // Refresh the key badge, the live summary and any shown progression.
+        if (doneSteps.has(0)) {
+          const badge = qa('.step-section')[0]?.querySelector('.step-value') as HTMLElement | null;
+          if (badge) badge.textContent = stepValueLabel(0);
+        }
+        updateSummary();
+        if (lastProgressions.length) {
+          const zone = q('#output-zone');
+          if (zone?.querySelector('.output-content')) {
+            zone.innerHTML = renderOutput(lastProgressions, state.lastSeed);
+          }
+        }
         break;
       }
       case 'set-scale': {
         const found = ScaleType.ALL.find(s => s.displayName === value);
-        if (found) { state.scaleType = found; setSelected('scale', value); completeStep(1); }
+        if (found) {
+          state.scaleType = found;
+          setSelected('scale', value);
+          completeStep(1);
+          // In auto mode the flat/sharp default can flip (e.g. minor keys);
+          // keep the toggle highlight and the key badge in sync.
+          if (state.accidental === null) {
+            updateNotationToggle();
+            const badge = qa('.step-section')[0]?.querySelector('.step-value') as HTMLElement | null;
+            if (badge && doneSteps.has(0)) badge.textContent = stepValueLabel(0);
+            updateSummary();
+          }
+        }
         break;
       }
       case 'scale-tab': {
@@ -716,4 +791,14 @@ function init() {
   if (first) flashReveal(first);
 }
 
+// Register the PWA service worker (production only — avoids caching during dev).
+function registerServiceWorker() {
+  if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
+  const base = import.meta.env.BASE_URL;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${base}sw.js`, { scope: base }).catch(() => {});
+  });
+}
+
 init();
+registerServiceWorker();

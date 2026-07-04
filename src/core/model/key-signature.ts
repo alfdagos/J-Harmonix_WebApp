@@ -52,6 +52,11 @@ export class KeySignature {
     return this.usesFlats ? note.toFlatString() : note.toString();
   }
 
+  /** Spell a note forcing a given accidental preference, ignoring the default. */
+  spellWith(note: Note, useFlats: boolean): string {
+    return useFlats ? note.toFlatString() : note.toString();
+  }
+
   diatonicChord(degree: number): Chord {
     return this.scale.diatonicChord(degree);
   }

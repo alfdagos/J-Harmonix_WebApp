@@ -1,0 +1,27 @@
+{
+  "name": "J-Harmonix — Jazz Harmony Generator",
+  "short_name": "J-Harmonix",
+  "description": "Professional jazz harmony generator — create chord progressions in any key, scale, and style directly in your browser.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0e1a",
+  "theme_color": "#0b0e1a",
+  "lang": "en",
+  "categories": ["music", "productivity", "education"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

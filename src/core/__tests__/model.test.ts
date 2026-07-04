@@ -355,6 +355,43 @@ describe('Scale', () => {
     it('has 6 notes (whole tone = 6 equal steps)', () => {
       expect(wt.size).toBe(6);
     });
+    it('tonic chord is augmented', () => {
+      expect(wt.diatonicChord(0).quality).toBe(ChordQuality.AUG_TRIAD);
+    });
+  });
+
+  describe('modes classify the seventh correctly', () => {
+    it('C Mixolydian I is a dominant 7th (C7), not Cmaj7', () => {
+      const mixo = Scale.of(Note.fromName('C'), ScaleType.MIXOLYDIAN);
+      expect(mixo.diatonicChord(0).toString()).toBe('C7');
+    });
+    it('D Dorian IV is a dominant 7th (G7)', () => {
+      const dorian = Scale.of(Note.fromName('D'), ScaleType.DORIAN);
+      expect(dorian.diatonicChord(3).toString()).toBe('G7');
+    });
+    it('C Lydian II is a dominant 7th (D7)', () => {
+      const lydian = Scale.of(Note.fromName('C'), ScaleType.LYDIAN);
+      expect(lydian.diatonicChord(1).toString()).toBe('D7');
+    });
+  });
+
+  describe('C Melodic Minor (jazz)', () => {
+    const mm = Scale.of(Note.fromName('C'), ScaleType.MELODIC_MINOR);
+    it('notes are C D Eb F G A B', () => {
+      expect(mm.notes.map(n => n.value)).toEqual([0, 2, 3, 5, 7, 9, 11]);
+    });
+    it('i is minor-major 7th (CmMaj7)', () => {
+      expect(mm.diatonicChord(0).quality).toBe(ChordQuality.MINOR_MAJOR_SEVENTH);
+    });
+    it('IV is a dominant 7th — the lydian-dominant source (F7)', () => {
+      expect(mm.diatonicChord(3).toString()).toBe('F7');
+    });
+    it('bIII is major 7th #5 (augmented major seventh)', () => {
+      expect(mm.diatonicChord(2).quality).toBe(ChordQuality.MAJOR_SEVENTH_SHARP_FIVE);
+    });
+    it('vii is half-diminished (Bm7b5) — the altered-scale source', () => {
+      expect(mm.diatonicChord(6).quality).toBe(ChordQuality.HALF_DIMINISHED);
+    });
   });
 });
 
