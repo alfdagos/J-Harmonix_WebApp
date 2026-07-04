@@ -59,7 +59,9 @@ export class JazzRuleEngine {
       const target = chords[i];
       if (target.root.equals(key.tonic)) continue;
       if (this.rng.nextInt(10) < 4) {
-        const secDomRoot = target.root.transpose(-7);
+        // V7/target: root a perfect fifth ABOVE the target so it resolves
+        // down a fifth onto it (e.g. A7 → Dm7, the V7/ii in C major).
+        const secDomRoot = target.root.transpose(7);
         chords.splice(i, 0, Chord.of(secDomRoot, ChordQuality.DOMINANT_SEVENTH));
         i--;
       }

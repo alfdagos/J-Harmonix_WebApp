@@ -139,6 +139,28 @@ describe('JazzRuleEngine', () => {
     expect(sawTurnaround).toBe(true);
   });
 
+  it('inserted secondary dominants resolve down a fifth to the next chord', () => {
+    // A section with no dominant chords and NOT ending on the tonic, so the
+    // turnaround stays out of the way and every V7 in the result is a freshly
+    // inserted secondary dominant.
+    const input = Progression.builder()
+      .add(fmaj7).add(em7).add(am7).add(dm7)
+      .label('Verse A').build();
+
+    for (let seed = 0; seed < 40; seed++) {
+      const engine = new JazzRuleEngine(seed);
+      const result = engine.apply(input, cMajor, HarmonyStyle.JAZZ_STANDARD);
+      const chords = result.chords;
+      for (let i = 0; i < chords.length; i++) {
+        if (chords[i].quality !== ChordQuality.DOMINANT_SEVENTH) continue;
+        const next = chords[i + 1];
+        expect(next).toBeDefined();
+        // V7 root is a perfect fifth above its resolution target.
+        expect(chords[i].root.transpose(-7).equals(next.root)).toBe(true);
+      }
+    }
+  });
+
   it('buildTwoFiveOne returns [IIm7, V7, Imaj7] in any key', () => {
     const engine = new JazzRuleEngine(0);
 

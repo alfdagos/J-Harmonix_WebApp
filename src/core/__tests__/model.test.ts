@@ -414,6 +414,39 @@ describe('KeySignature', () => {
       expect(() => dMinor.relativeMinor()).toThrow();
     });
   });
+
+  describe('enharmonic spelling (usesFlats / spell)', () => {
+    const eb = Note.fromName('Eb'); // pitch class 3
+    const bb = Note.fromName('Bb'); // pitch class 10
+
+    it('flat major keys spell with flats (E♭ major → E♭, not D♯)', () => {
+      const ebMajor = KeySignature.major('Eb');
+      expect(ebMajor.usesFlats).toBe(true);
+      expect(ebMajor.spell(eb)).toBe('Eb');
+      expect(ebMajor.spell(bb)).toBe('Bb');
+      // the tonic itself resolves to its flat name even if built from D#
+      expect(KeySignature.major('D#').spell(Note.fromName('D#'))).toBe('Eb');
+    });
+
+    it('sharp major keys spell with sharps (B major → D♯, not E♭)', () => {
+      const bMajor = KeySignature.major('B');
+      expect(bMajor.usesFlats).toBe(false);
+      expect(bMajor.spell(eb)).toBe('D#');
+    });
+
+    it('C major and F# major use sharps; F major uses flats', () => {
+      expect(KeySignature.major('C').usesFlats).toBe(false);
+      expect(KeySignature.major('F#').usesFlats).toBe(false);
+      expect(KeySignature.major('F').usesFlats).toBe(true);
+    });
+
+    it('minor keys borrow the relative-major signature', () => {
+      expect(KeySignature.naturalMinor('C').usesFlats).toBe(true);  // rel. Eb major
+      expect(KeySignature.naturalMinor('G').usesFlats).toBe(true);  // rel. Bb major
+      expect(KeySignature.naturalMinor('E').usesFlats).toBe(false); // rel. G major
+      expect(KeySignature.naturalMinor('A').usesFlats).toBe(false); // rel. C major
+    });
+  });
 });
 
 // ─── Progression ─────────────────────────────────────────────

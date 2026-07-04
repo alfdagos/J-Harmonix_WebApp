@@ -1,6 +1,7 @@
 import './style.css';
 import {
   HarmonyGeneratorService,
+  KeySignature,
   ScaleType,
   HarmonyStyle,
   ComplexityLevel,
@@ -93,6 +94,27 @@ const MODULATION_OPTIONS = [
   { key: ModulationFrequency.HIGH,   label: 'High',   sub: 'chromatic' },
 ] as const;
 
+// Progressive-reveal metadata (index === data-step)
+const STEP_META = [
+  { name: 'Key' },
+  { name: 'Scale' },
+  { name: 'Form' },
+  { name: 'Style' },
+  { name: 'Complexity' },
+  { name: 'Modulation' },
+] as const;
+const TOTAL_STEPS = STEP_META.length;
+
+const NEXT_PROMPTS = [
+  'Pick a key to begin — each choice reveals the next',
+  'Nice. Now choose a scale to colour the harmony',
+  'Great. Set the song form',
+  'Now pick a harmony style',
+  'Choose how dense the chords should be',
+  'Finally, set the key modulation',
+  'All set — hit Generate to hear it come alive',
+] as const;
+
 // ============================================================
 // STATE
 // ============================================================
@@ -107,6 +129,7 @@ interface State {
   complexity:     ComplexityLevel;
   modulation:     ModulationFrequency;
   lastSeed:       number;
+  revealed:       number;   // highest step index unlocked (0-based)
 }
 
 const state: State = {
@@ -119,7 +142,11 @@ const state: State = {
   complexity: ComplexityLevel.SEVENTH_CHORDS,
   modulation: ModulationFrequency.MEDIUM,
   lastSeed:   0,
+  revealed:   0,
 };
+
+// Steps the user has actively configured (data-step indices)
+const doneSteps = new Set<number>();
 
 // ============================================================
 // DOM HELPERS
@@ -149,6 +176,100 @@ function showToast(msg: string) {
   toast.textContent = msg;
   toast.classList.add('show');
   setTimeout(() => toast!.classList.remove('show'), 2000);
+}
+
+// ============================================================
+// PROGRESSIVE REVEAL
+// ============================================================
+
+/** Human-readable value currently chosen for a given step. */
+function stepValueLabel(idx: number): string {
+  switch (idx) {
+    case 0:
+      return SHARP_DISP[state.tonic] + (FLAT_ALT[state.tonic] ? ` / ${FLAT_ALT[state.tonic]}` : '');
+    case 1:
+      for (const g of SCALE_GROUPS)
+        for (const s of g.scales)
+          if (s.type === state.scaleType) return s.name;
+      return state.scaleType.displayName;
+    case 2: {
+      if (state.formPreset === 'custom')
+        return state.formCustom ? state.formCustom.toUpperCase() : 'Custom';
+      const f = FORM_PRESETS.find(f => f.id === state.formPreset);
+      return f?.hint || f?.label || '—';
+    }
+    case 3: return STYLE_OPTIONS.find(s => s.key === state.style)?.label ?? '';
+    case 4: return COMPLEXITY_OPTIONS.find(c => c.key === state.complexity)?.label ?? '';
+    case 5: return MODULATION_OPTIONS.find(m => m.key === state.modulation)?.label ?? '';
+    default: return '';
+  }
+}
+
+function scrollSoft(el: Element) {
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/** Play the one-shot reveal/glow animation, then settle to the resting state. */
+function flashReveal(el: Element) {
+  el.classList.add('just-revealed');
+  setTimeout(() => el.classList.remove('just-revealed'), 1700);
+}
+
+/** Reveal the next locked element (step or the generate area) with a glow. */
+function revealFrontier() {
+  const sections = qa('.step-section');
+  const n = state.revealed;
+  const target = n < sections.length ? sections[n] : q('.generate-area');
+  if (!target) return;
+  target.classList.add('revealed');
+  flashReveal(target);
+  requestAnimationFrame(() => scrollSoft(target));
+}
+
+/** Mark a step as configured, update its badge/summary, and unlock the next. */
+function completeStep(idx: number) {
+  doneSteps.add(idx);
+
+  const sec = qa('.step-section')[idx];
+  if (sec) {
+    sec.classList.add('completed');
+    const badge = sec.querySelector('.step-value') as HTMLElement | null;
+    if (badge) badge.textContent = stepValueLabel(idx);
+  }
+
+  updateSummary();
+  updateProgress();
+
+  if (state.revealed <= idx) {
+    state.revealed = idx + 1;
+    revealFrontier();
+  }
+}
+
+/** Header progress bar + label. */
+function updateProgress() {
+  const fill = q('#progress-fill');
+  if (fill) fill.style.width = `${(doneSteps.size / TOTAL_STEPS) * 100}%`;
+  const label = q('#progress-label');
+  if (label) {
+    label.textContent = doneSteps.size >= TOTAL_STEPS
+      ? 'All parameters set'
+      : `${doneSteps.size} of ${TOTAL_STEPS} configured`;
+  }
+}
+
+/** Live "setup" list in the output column — grows as the user configures. */
+function updateSummary() {
+  const host = q('#setup-summary');
+  if (host) {
+    host.innerHTML = [...doneSteps].sort((a, b) => a - b).map(idx => `
+      <div class="sum-row">
+        <span class="sum-key">${STEP_META[idx].name}</span>
+        <span class="sum-val">${stepValueLabel(idx)}</span>
+      </div>`).join('');
+  }
+  const sub = q('#ph-sub');
+  if (sub) sub.textContent = NEXT_PROMPTS[Math.min(doneSteps.size, NEXT_PROMPTS.length - 1)];
 }
 
 // ============================================================
@@ -228,6 +349,18 @@ function buildModulationControl(): string {
 // FULL APP HTML (built once on init)
 // ============================================================
 
+function stepHead(n: string, title: string, sub: string): string {
+  return `
+    <div class="step-hd">
+      <span class="step-n">${n}</span>
+      <div class="step-hd-text">
+        <h2 class="step-title">${title}</h2>
+        <p class="step-sub">${sub}</p>
+      </div>
+      <span class="step-value" aria-hidden="true"></span>
+    </div>`;
+}
+
 function buildAppHTML(): string {
   return `
 <div class="jh-wrap">
@@ -237,6 +370,10 @@ function buildAppHTML(): string {
       <span class="logo-text">J-Harmonix</span>
     </div>
     <p class="jh-tagline">Professional Jazz Harmony Generator</p>
+    <div class="jh-progress">
+      <div class="jh-progress-track"><div class="jh-progress-fill" id="progress-fill"></div></div>
+      <span class="jh-progress-label" id="progress-label">0 of ${TOTAL_STEPS} configured</span>
+    </div>
   </header>
 
   <main class="jh-main">
@@ -244,28 +381,16 @@ function buildAppHTML(): string {
     <div class="config-col">
 
       <!-- Step 1: Key Center -->
-      <section class="step-section">
-        <div class="step-hd">
-          <span class="step-n">01</span>
-          <div>
-            <h2 class="step-title">Key Center</h2>
-            <p class="step-sub">The tonic note your progression revolves around</p>
-          </div>
-        </div>
+      <section class="step-section revealed" data-step="0">
+        ${stepHead('01', 'Key Center', 'The tonic note your progression revolves around')}
         <div class="note-grid" role="group" aria-label="Select tonic note">
           ${buildNoteGrid()}
         </div>
       </section>
 
       <!-- Step 2: Scale -->
-      <section class="step-section">
-        <div class="step-hd">
-          <span class="step-n">02</span>
-          <div>
-            <h2 class="step-title">Scale</h2>
-            <p class="step-sub">Interval structure — shapes the harmonic colour</p>
-          </div>
-        </div>
+      <section class="step-section" data-step="1">
+        ${stepHead('02', 'Scale', 'Interval structure — shapes the harmonic colour')}
         <div class="scale-tabs" role="tablist" id="scale-tabs">
           ${buildScaleTabs()}
         </div>
@@ -275,14 +400,8 @@ function buildAppHTML(): string {
       </section>
 
       <!-- Step 3: Song Form -->
-      <section class="step-section">
-        <div class="step-hd">
-          <span class="step-n">03</span>
-          <div>
-            <h2 class="step-title">Song Form</h2>
-            <p class="step-sub">The structural blueprint of your composition</p>
-          </div>
-        </div>
+      <section class="step-section" data-step="2">
+        ${stepHead('03', 'Song Form', 'The structural blueprint of your composition')}
         <div class="form-presets" role="group" aria-label="Select song form">
           ${buildFormPresets()}
         </div>
@@ -298,42 +417,24 @@ function buildAppHTML(): string {
       </section>
 
       <!-- Step 4: Harmony Style -->
-      <section class="step-section">
-        <div class="step-hd">
-          <span class="step-n">04</span>
-          <div>
-            <h2 class="step-title">Harmony Style</h2>
-            <p class="step-sub">Jazz sophistication level — from folk to modern jazz</p>
-          </div>
-        </div>
+      <section class="step-section" data-step="3">
+        ${stepHead('04', 'Harmony Style', 'Jazz sophistication level — from folk to modern jazz')}
         <div class="style-grid" role="group" aria-label="Select harmony style">
           ${buildStyleGrid()}
         </div>
       </section>
 
       <!-- Step 5: Complexity -->
-      <section class="step-section">
-        <div class="step-hd">
-          <span class="step-n">05</span>
-          <div>
-            <h2 class="step-title">Chord Complexity</h2>
-            <p class="step-sub">Maximum voicing density — how many notes per chord</p>
-          </div>
-        </div>
+      <section class="step-section" data-step="4">
+        ${stepHead('05', 'Chord Complexity', 'Maximum voicing density — how many notes per chord')}
         <div class="seg-control" role="group" aria-label="Select chord complexity">
           ${buildComplexityControl()}
         </div>
       </section>
 
       <!-- Step 6: Modulation -->
-      <section class="step-section">
-        <div class="step-hd">
-          <span class="step-n">06</span>
-          <div>
-            <h2 class="step-title">Key Modulation</h2>
-            <p class="step-sub">How often and how adventurously the key changes</p>
-          </div>
-        </div>
+      <section class="step-section" data-step="5">
+        ${stepHead('06', 'Key Modulation', 'How often and how adventurously the key changes')}
         <div class="seg-control" role="group" aria-label="Select modulation frequency">
           ${buildModulationControl()}
         </div>
@@ -354,12 +455,9 @@ function buildAppHTML(): string {
       <div id="output-zone">
         <div class="output-placeholder">
           <div class="ph-icon">♩</div>
-          <p class="ph-title">Your progression appears here</p>
-          <p class="ph-sub">Configure the parameters on the left, then hit Generate</p>
-          <div class="ph-steps">
-            <span class="ph-step"><span class="ph-step-num">tip</span> Default settings already produce great jazz progressions</span>
-            <span class="ph-step"><span class="ph-step-num">tip</span> Regenerate multiple times — each result is unique</span>
-          </div>
+          <p class="ph-title">Building your progression…</p>
+          <div class="setup-summary" id="setup-summary"></div>
+          <p class="ph-sub" id="ph-sub">${NEXT_PROMPTS[0]}</p>
         </div>
       </div>
     </div>
@@ -379,7 +477,8 @@ function currentFormValue(): string {
 function renderOutput(progressions: Progression[], seed: number): string {
   const formValue = currentFormValue();
   const styleName = STYLE_OPTIONS.find(s => s.key === state.style)?.label ?? state.style;
-  const keyLabel  = `${state.tonic} ${state.scaleType.displayName.toUpperCase()}`;
+  const key       = KeySignature.of(state.tonic, state.scaleType);
+  const keyLabel  = `${key.spell(key.tonic)} ${state.scaleType.displayName.toUpperCase()}`;
 
   const banner = `
     <div class="output-banner">
@@ -400,10 +499,10 @@ function renderOutput(progressions: Progression[], seed: number): string {
   const sections = progressions.map((prog, pi) => {
     const chips = prog.chords.map((chord, ci) => {
       const delay = (pi * 0.06 + ci * 0.035).toFixed(3);
-      const root    = chord.root.toString();
+      const root    = key.spell(chord.root);
       const quality = chord.quality.symbol;
       return `
-        <div class="chord-chip" style="animation-delay:${delay}s" title="${chord.toString()}">
+        <div class="chord-chip" style="animation-delay:${delay}s" title="${root}${quality}">
           <span class="chord-root">${root}</span>
           <span class="chord-quality">${quality}</span>
         </div>
@@ -430,13 +529,14 @@ function renderOutput(progressions: Progression[], seed: number): string {
 }
 
 function buildPlainText(progressions: Progression[]): string {
-  const bar  = '═'.repeat(60);
-  const form = currentFormValue().toUpperCase();
-  const key  = `${state.tonic} ${state.scaleType.displayName.toUpperCase()}`;
-  let out = `${bar}\n  J-Harmonix  ·  Key: ${key}  ·  Form: ${form}\n${bar}\n\n`;
+  const bar     = '═'.repeat(60);
+  const form    = currentFormValue().toUpperCase();
+  const key     = KeySignature.of(state.tonic, state.scaleType);
+  const keyName = `${key.spell(key.tonic)} ${state.scaleType.displayName.toUpperCase()}`;
+  let out = `${bar}\n  J-Harmonix  ·  Key: ${keyName}  ·  Form: ${form}\n${bar}\n\n`;
   for (const prog of progressions) {
     if (prog.sectionLabel) out += `[${prog.sectionLabel}]\n`;
-    out += '| ' + prog.chords.map(c => c.toString()).join(' | ') + ' |\n\n';
+    out += '| ' + prog.chords.map(c => key.spell(c.root) + c.quality.symbol).join(' | ') + ' |\n\n';
   }
   return out.trim();
 }
@@ -504,16 +604,23 @@ function setupEvents(app: HTMLElement) {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     if (e.key === 'Enter' || e.key === ' ') {
+      // Only once the flow has revealed the generate button
+      if (!q('.generate-area')?.classList.contains('revealed')) return;
       e.preventDefault();
       generate();
     }
   });
 
-  // Custom form input
+  // Custom form input — keep the badge & live summary in sync while typing
   app.addEventListener('input', (e) => {
     const el = e.target as HTMLInputElement;
     if (el.id === 'form-custom-input') {
       state.formCustom = el.value;
+      if (doneSteps.has(2)) {
+        const badge = qa('.step-section')[2]?.querySelector('.step-value') as HTMLElement | null;
+        if (badge) badge.textContent = stepValueLabel(2);
+        updateSummary();
+      }
     }
   });
 
@@ -528,11 +635,12 @@ function setupEvents(app: HTMLElement) {
       case 'set-note': {
         state.tonic = value;
         setSelected('note', value);
+        completeStep(0);
         break;
       }
       case 'set-scale': {
         const found = ScaleType.ALL.find(s => s.displayName === value);
-        if (found) { state.scaleType = found; setSelected('scale', value); }
+        if (found) { state.scaleType = found; setSelected('scale', value); completeStep(1); }
         break;
       }
       case 'scale-tab': {
@@ -550,6 +658,7 @@ function setupEvents(app: HTMLElement) {
         setSelected('form', value);
         const wrap = q('#form-custom-wrap')!;
         wrap.classList.toggle('visible', value === 'custom');
+        completeStep(2);
         if (value === 'custom') {
           (q('#form-custom-input') as HTMLInputElement)?.focus();
         }
@@ -558,16 +667,19 @@ function setupEvents(app: HTMLElement) {
       case 'set-style': {
         state.style = value as HarmonyStyle;
         setSelected('style', value);
+        completeStep(3);
         break;
       }
       case 'set-complexity': {
         state.complexity = value as ComplexityLevel;
         setSelected('complexity', value);
+        completeStep(4);
         break;
       }
       case 'set-modulation': {
         state.modulation = value as ModulationFrequency;
         setSelected('modulation', value);
+        completeStep(5);
         break;
       }
       case 'generate':    generate();                 break;
@@ -585,6 +697,11 @@ function init() {
   const app = document.getElementById('app')!;
   app.innerHTML = buildAppHTML();
   setupEvents(app);
+  updateProgress();
+  updateSummary();
+  // Entrance animation for the first (already-unlocked) step
+  const first = qa('.step-section')[0];
+  if (first) flashReveal(first);
 }
 
 init();
