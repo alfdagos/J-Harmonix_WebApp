@@ -79,7 +79,7 @@ describe('HarmonyGeneratorService', () => {
       for (const section of progressions) {
         for (const chord of section.chords) {
           const inKey = cMajorNotes.some(n => n.equals(chord.root));
-          expect(inKey).toBe(true, `Chord ${chord.toString()} root not in C Major`);
+          expect(inKey).toBe(true);
         }
       }
     });

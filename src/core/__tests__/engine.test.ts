@@ -17,8 +17,6 @@ describe('ChordSelector', () => {
   const cMajor = KeySignature.major('C');
 
   it('DOMINANT function always returns the V chord (G7 in C Major)', () => {
-    const selector = new ChordSelector(0);
-    // With NONE modulation, the V is always G7 regardless of complexity
     for (let seed = 0; seed < 20; seed++) {
       const s = new ChordSelector(seed);
       const chord = s.select(HarmonicFunction.DOMINANT, cMajor, ComplexityLevel.SEVENTH_CHORDS, HarmonyStyle.SIMPLE);
@@ -68,7 +66,6 @@ describe('ChordSelector', () => {
   });
 
   it('NINTHS complexity upgrades dominant to 9th chord', () => {
-    const s = new ChordSelector(0);
     let foundNinth = false;
     for (let seed = 0; seed < 20; seed++) {
       const sel = new ChordSelector(seed);
