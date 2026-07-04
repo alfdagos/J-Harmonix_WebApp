@@ -120,27 +120,30 @@ const NEXT_PROMPTS = [
 // ============================================================
 
 interface State {
-  tonic:          string;
-  scaleType:      ScaleType;
+  tonic:          string | null;
+  scaleType:      ScaleType | null;
   scaleGroup:     number;
-  formPreset:     string;
+  formPreset:     string | null;
   formCustom:     string;
-  style:          HarmonyStyle;
-  complexity:     ComplexityLevel;
-  modulation:     ModulationFrequency;
+  style:          HarmonyStyle | null;
+  complexity:     ComplexityLevel | null;
+  modulation:     ModulationFrequency | null;
   lastSeed:       number;
   revealed:       number;   // highest step index unlocked (0-based)
 }
 
+// Selectable parameters start empty — nothing is pre-selected until the user
+// actually clicks. scaleGroup is just which tab is visible (navigation, not a
+// musical choice), so it keeps a default.
 const state: State = {
-  tonic:      'C',
-  scaleType:  ScaleType.MAJOR,
+  tonic:      null,
+  scaleType:  null,
   scaleGroup: 0,
-  formPreset: 'aaba',
+  formPreset: null,
   formCustom: '',
-  style:      HarmonyStyle.JAZZ_STANDARD,
-  complexity: ComplexityLevel.SEVENTH_CHORDS,
-  modulation: ModulationFrequency.MEDIUM,
+  style:      null,
+  complexity: null,
+  modulation: null,
   lastSeed:   0,
   revealed:   0,
 };
@@ -186,8 +189,10 @@ function showToast(msg: string) {
 function stepValueLabel(idx: number): string {
   switch (idx) {
     case 0:
+      if (!state.tonic) return '';
       return SHARP_DISP[state.tonic] + (FLAT_ALT[state.tonic] ? ` / ${FLAT_ALT[state.tonic]}` : '');
     case 1:
+      if (!state.scaleType) return '';
       for (const g of SCALE_GROUPS)
         for (const s of g.scales)
           if (s.type === state.scaleType) return s.name;
@@ -477,8 +482,8 @@ function currentFormValue(): string {
 function renderOutput(progressions: Progression[], seed: number): string {
   const formValue = currentFormValue();
   const styleName = STYLE_OPTIONS.find(s => s.key === state.style)?.label ?? state.style;
-  const key       = KeySignature.of(state.tonic, state.scaleType);
-  const keyLabel  = `${key.spell(key.tonic)} ${state.scaleType.displayName.toUpperCase()}`;
+  const key       = KeySignature.of(state.tonic!, state.scaleType!);
+  const keyLabel  = `${key.spell(key.tonic)} ${state.scaleType!.displayName.toUpperCase()}`;
 
   const banner = `
     <div class="output-banner">
@@ -531,8 +536,8 @@ function renderOutput(progressions: Progression[], seed: number): string {
 function buildPlainText(progressions: Progression[]): string {
   const bar     = '═'.repeat(60);
   const form    = currentFormValue().toUpperCase();
-  const key     = KeySignature.of(state.tonic, state.scaleType);
-  const keyName = `${key.spell(key.tonic)} ${state.scaleType.displayName.toUpperCase()}`;
+  const key     = KeySignature.of(state.tonic!, state.scaleType!);
+  const keyName = `${key.spell(key.tonic)} ${state.scaleType!.displayName.toUpperCase()}`;
   let out = `${bar}\n  J-Harmonix  ·  Key: ${keyName}  ·  Form: ${form}\n${bar}\n\n`;
   for (const prog of progressions) {
     if (prog.sectionLabel) out += `[${prog.sectionLabel}]\n`;
@@ -548,6 +553,13 @@ function buildPlainText(progressions: Progression[]): string {
 let lastProgressions: Progression[] = [];
 
 function generate(seed?: number) {
+  // Every parameter must be chosen first (the generate button is only revealed
+  // once all steps are configured, so this is a defensive guard).
+  if (
+    state.tonic == null || state.scaleType == null || state.formPreset == null ||
+    state.style == null  || state.complexity == null || state.modulation == null
+  ) return;
+
   const btn = q('#generate-btn') as HTMLButtonElement;
   btn.disabled = true;
   btn.classList.add('loading');
