@@ -958,3 +958,28 @@ body { min-height: 100dvh; }
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 99px; }
+
+/* --- Language toggle --------------------------------------- */
+.lang-toggle {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 2px;
+  gap: 2px;
+  z-index: 10;
+}
+.lang-btn {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-2);
+  padding: 5px 9px;
+  border-radius: 7px;
+  transition: background .15s, color .15s;
+}
+.lang-btn:hover { color: var(--text); background: var(--card-hover); }
+.lang-btn.active { background: var(--accent); color: #0b0e1a; }

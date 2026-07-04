@@ -9,6 +9,8 @@ import {
   createRequest,
 } from './core/index';
 import type { Progression } from './core/index';
+import { t, setLocale, getLocale } from './i18n';
+import type { Locale, TranslationKey } from './i18n';
 
 // ============================================================
 // DATA
@@ -26,94 +28,85 @@ const IS_SHARP: Record<string, boolean> = {
   'C#':true,'D#':true,'F#':true,'G#':true,'A#':true,
 };
 
-const SCALE_GROUPS = [
-  {
-    label: 'Common',
-    scales: [
-      { type: ScaleType.MAJOR,          name: 'Major',         desc: 'Bright — foundation of Western harmony' },
-      { type: ScaleType.NATURAL_MINOR,  name: 'Natural Minor', desc: 'Dark, introspective — Aeolian mode' },
-      { type: ScaleType.HARMONIC_MINOR, name: 'Harmonic Minor',desc: 'Raised 7th — classical minor cadences' },
-      { type: ScaleType.MELODIC_MINOR,  name: 'Melodic Minor', desc: 'Jazz ascending form — Lydian Dominant' },
-    ],
-  },
-  {
-    label: 'Modes',
-    scales: [
-      { type: ScaleType.DORIAN,     name: 'Dorian',     desc: 'Minor + raised 6th — cool jazz, Latin' },
-      { type: ScaleType.PHRYGIAN,   name: 'Phrygian',   desc: 'Flat 2nd — Spanish, flamenco, dark' },
-      { type: ScaleType.LYDIAN,     name: 'Lydian',     desc: 'Major + ♯4 — bright, ethereal, cinematic' },
-      { type: ScaleType.MIXOLYDIAN, name: 'Mixolydian', desc: 'Major + ♭7 — blues, rock, dominant feel' },
-      { type: ScaleType.LOCRIAN,    name: 'Locrian',    desc: 'Diminished tonic — avant-garde, dissonant' },
-    ],
-  },
-  {
-    label: 'Pentatonic & Blues',
-    scales: [
-      { type: ScaleType.PENTATONIC_MAJOR, name: 'Major Pentatonic', desc: 'Country, pop — five-note major' },
-      { type: ScaleType.PENTATONIC_MINOR, name: 'Minor Pentatonic', desc: 'Blues, rock — five-note minor' },
-      { type: ScaleType.BLUES,            name: 'Blues',            desc: 'The blues scale — soulful, raw' },
-    ],
-  },
-  {
-    label: 'Symmetric',
-    scales: [
-      { type: ScaleType.WHOLE_TONE,    name: 'Whole Tone',     desc: 'Debussy, floating — no tonal centre' },
-      { type: ScaleType.DIMINISHED_WH, name: 'Dim. Whole-Half',desc: 'Octatonic W-H — symmetric tension' },
-      { type: ScaleType.DIMINISHED_HW, name: 'Dim. Half-Whole',desc: 'Octatonic H-W — bebop diminished' },
-    ],
-  },
-] as const;
+function getScaleGroups() {
+  return [
+    {
+      label: t('sgCommon'),
+      scales: [
+        { type: ScaleType.MAJOR,          name: t('nameMajor'),         desc: t('descMajor') },
+        { type: ScaleType.NATURAL_MINOR,  name: t('nameNaturalMinor'),  desc: t('descNaturalMinor') },
+        { type: ScaleType.HARMONIC_MINOR, name: t('nameHarmonicMinor'), desc: t('descHarmonicMinor') },
+        { type: ScaleType.MELODIC_MINOR,  name: t('nameMelodicMinor'),  desc: t('descMelodicMinor') },
+      ],
+    },
+    {
+      label: t('sgModes'),
+      scales: [
+        { type: ScaleType.DORIAN,     name: t('nameDorian'),     desc: t('descDorian') },
+        { type: ScaleType.PHRYGIAN,   name: t('namePhrygian'),   desc: t('descPhrygian') },
+        { type: ScaleType.LYDIAN,     name: t('nameLydian'),     desc: t('descLydian') },
+        { type: ScaleType.MIXOLYDIAN, name: t('nameMixolydian'), desc: t('descMixolydian') },
+        { type: ScaleType.LOCRIAN,    name: t('nameLocrian'),    desc: t('descLocrian') },
+      ],
+    },
+    {
+      label: t('sgPentatonicBlues'),
+      scales: [
+        { type: ScaleType.PENTATONIC_MAJOR, name: t('namePentatonicMajor'), desc: t('descPentatonicMajor') },
+        { type: ScaleType.PENTATONIC_MINOR, name: t('namePentatonicMinor'), desc: t('descPentatonicMinor') },
+        { type: ScaleType.BLUES,            name: t('nameBlues'),           desc: t('descBlues') },
+      ],
+    },
+    {
+      label: t('sgSymmetric'),
+      scales: [
+        { type: ScaleType.WHOLE_TONE,    name: t('nameWholeTone'), desc: t('descWholeTone') },
+        { type: ScaleType.DIMINISHED_WH, name: t('nameDimWH'),     desc: t('descDimWH') },
+        { type: ScaleType.DIMINISHED_HW, name: t('nameDimHW'),     desc: t('descDimHW') },
+      ],
+    },
+  ];
+}
 
 const FORM_PRESETS = [
-  { id:'aaba',  label:'32-bar Standard', value:'AABA',                       hint:'AABA' },
-  { id:'abac',  label:'32-bar (ABAC)',   value:'ABAC',                       hint:'ABAC' },
-  { id:'vc',    label:'Verse · Chorus',  value:'verse-chorus-verse-chorus',  hint:'V-C-V-C' },
-  { id:'vcb',   label:'V · C · Bridge', value:'verse-chorus-bridge-chorus', hint:'V-C-B-C' },
-  { id:'ab',    label:'Two-part (AB)',   value:'AB',                         hint:'AB' },
-  { id:'custom',label:'Custom…',         value:'',                           hint:'' },
-] as const;
+  { id: 'aaba',   labelKey: 'formAaba'   as TranslationKey, value: 'AABA',                       hint: 'AABA' },
+  { id: 'abac',   labelKey: 'formAbac'   as TranslationKey, value: 'ABAC',                       hint: 'ABAC' },
+  { id: 'vc',     labelKey: 'formVc'     as TranslationKey, value: 'verse-chorus-verse-chorus',  hint: 'V-C-V-C' },
+  { id: 'vcb',    labelKey: 'formVcb'    as TranslationKey, value: 'verse-chorus-bridge-chorus', hint: 'V-C-B-C' },
+  { id: 'ab',     labelKey: 'formAb'     as TranslationKey, value: 'AB',                         hint: 'AB' },
+  { id: 'custom', labelKey: 'formCustom' as TranslationKey, value: '',                            hint: '' },
+];
 
 const STYLE_OPTIONS = [
-  { key: HarmonyStyle.SIMPLE,        icon: '∿', label: 'Simple',       desc: 'Diatonic triads — folk, country, acoustic' },
-  { key: HarmonyStyle.POP,           icon: '♩', label: 'Pop',          desc: 'Seventh chords — modern pop & rock harmony' },
-  { key: HarmonyStyle.JAZZ_STANDARD, icon: '♪', label: 'Jazz Standard',desc: 'ii-V-I, turnarounds, secondary dominants' },
-  { key: HarmonyStyle.JAZZ_MODERN,   icon: '♫', label: 'Jazz Modern',  desc: 'Altered doms, tritone subs, upper extensions' },
-] as const;
+  { key: HarmonyStyle.SIMPLE,        icon: '∿', labelKey: 'styleSimpleLabel'  as TranslationKey, descKey: 'styleSimpleDesc'   as TranslationKey },
+  { key: HarmonyStyle.POP,           icon: '♩', labelKey: 'stylePopLabel'     as TranslationKey, descKey: 'stylePopDesc'      as TranslationKey },
+  { key: HarmonyStyle.JAZZ_STANDARD, icon: '♪', labelKey: 'styleJazzStdLabel' as TranslationKey, descKey: 'styleJazzStdDesc'  as TranslationKey },
+  { key: HarmonyStyle.JAZZ_MODERN,   icon: '♫', labelKey: 'styleJazzModLabel' as TranslationKey, descKey: 'styleJazzModDesc'  as TranslationKey },
+];
 
 const COMPLEXITY_OPTIONS = [
-  { key: ComplexityLevel.TRIADS,          label: 'Triads',     sub: '1-3-5' },
-  { key: ComplexityLevel.SEVENTH_CHORDS,  label: '7th Chords', sub: '+ 7th' },
-  { key: ComplexityLevel.NINTHS,          label: '9th Chords', sub: '+ 9th' },
-  { key: ComplexityLevel.FULL_EXTENSIONS, label: 'Full Ext.',  sub: '9-11-13' },
-] as const;
+  { key: ComplexityLevel.TRIADS,          labelKey: 'complexTriads'  as TranslationKey, sub: '1-3-5' },
+  { key: ComplexityLevel.SEVENTH_CHORDS,  labelKey: 'complexSeventh' as TranslationKey, sub: '+ 7th' },
+  { key: ComplexityLevel.NINTHS,          labelKey: 'complexNinth'   as TranslationKey, sub: '+ 9th' },
+  { key: ComplexityLevel.FULL_EXTENSIONS, labelKey: 'complexFull'    as TranslationKey, sub: '9-11-13' },
+];
 
 const MODULATION_OPTIONS = [
-  { key: ModulationFrequency.NONE,   label: 'None',   sub: 'one key' },
-  { key: ModulationFrequency.LOW,    label: 'Low',    sub: 'pivot' },
-  { key: ModulationFrequency.MEDIUM, label: 'Medium', sub: 'ii-V' },
-  { key: ModulationFrequency.HIGH,   label: 'High',   sub: 'chromatic' },
-] as const;
+  { key: ModulationFrequency.NONE,   labelKey: 'modNone'   as TranslationKey, subKey: 'modNoneSub'   as TranslationKey },
+  { key: ModulationFrequency.LOW,    labelKey: 'modLow'    as TranslationKey, subKey: 'modLowSub'    as TranslationKey },
+  { key: ModulationFrequency.MEDIUM, labelKey: 'modMedium' as TranslationKey, subKey: 'modMediumSub' as TranslationKey },
+  { key: ModulationFrequency.HIGH,   labelKey: 'modHigh'   as TranslationKey, subKey: 'modHighSub'   as TranslationKey },
+];
 
 // Progressive-reveal metadata (index === data-step)
-const STEP_META = [
-  { name: 'Key' },
-  { name: 'Scale' },
-  { name: 'Form' },
-  { name: 'Style' },
-  { name: 'Complexity' },
-  { name: 'Modulation' },
-] as const;
-const TOTAL_STEPS = STEP_META.length;
+const STEP_META_KEYS: readonly TranslationKey[] = [
+  'stepKey', 'stepScale', 'stepForm', 'stepStyle', 'stepComplexity', 'stepModulation',
+];
+const TOTAL_STEPS = STEP_META_KEYS.length;
 
-const NEXT_PROMPTS = [
-  'Pick a key to begin — each choice reveals the next',
-  'Nice. Now choose a scale to colour the harmony',
-  'Great. Set the song form',
-  'Now pick a harmony style',
-  'Choose how dense the chords should be',
-  'Finally, set the key modulation',
-  'All set — hit Generate to hear it come alive',
-] as const;
+const NEXT_PROMPT_KEYS: readonly TranslationKey[] = [
+  'prompt0', 'prompt1', 'prompt2', 'prompt3', 'prompt4', 'prompt5', 'prompt6',
+];
 
 // ============================================================
 // STATE
@@ -224,21 +217,32 @@ function stepValueLabel(idx: number): string {
       return resolvedUseFlats() && FLAT_ALT[state.tonic]
         ? FLAT_ALT[state.tonic]
         : SHARP_DISP[state.tonic];
-    case 1:
+    case 1: {
       if (!state.scaleType) return '';
-      for (const g of SCALE_GROUPS)
+      const groups = getScaleGroups();
+      for (const g of groups)
         for (const s of g.scales)
           if (s.type === state.scaleType) return s.name;
       return state.scaleType.displayName;
+    }
     case 2: {
       if (state.formPreset === 'custom')
-        return state.formCustom ? state.formCustom.toUpperCase() : 'Custom';
+        return state.formCustom ? state.formCustom.toUpperCase() : t('formCustomValue');
       const f = FORM_PRESETS.find(f => f.id === state.formPreset);
-      return f?.hint || f?.label || '—';
+      return f?.hint || (f ? t(f.labelKey) : '—');
     }
-    case 3: return STYLE_OPTIONS.find(s => s.key === state.style)?.label ?? '';
-    case 4: return COMPLEXITY_OPTIONS.find(c => c.key === state.complexity)?.label ?? '';
-    case 5: return MODULATION_OPTIONS.find(m => m.key === state.modulation)?.label ?? '';
+    case 3: {
+      const opt = STYLE_OPTIONS.find(s => s.key === state.style);
+      return opt ? t(opt.labelKey) : '';
+    }
+    case 4: {
+      const opt = COMPLEXITY_OPTIONS.find(c => c.key === state.complexity);
+      return opt ? t(opt.labelKey) : '';
+    }
+    case 5: {
+      const opt = MODULATION_OPTIONS.find(m => m.key === state.modulation);
+      return opt ? t(opt.labelKey) : '';
+    }
     default: return '';
   }
 }
@@ -291,8 +295,8 @@ function updateProgress() {
   const label = q('#progress-label');
   if (label) {
     label.textContent = doneSteps.size >= TOTAL_STEPS
-      ? 'All parameters set'
-      : `${doneSteps.size} of ${TOTAL_STEPS} configured`;
+      ? t('progressAllSet')
+      : `${doneSteps.size} ${t('progressOf')} ${TOTAL_STEPS} ${t('progressConfigured')}`;
   }
 }
 
@@ -302,12 +306,12 @@ function updateSummary() {
   if (host) {
     host.innerHTML = [...doneSteps].sort((a, b) => a - b).map(idx => `
       <div class="sum-row">
-        <span class="sum-key">${STEP_META[idx].name}</span>
+        <span class="sum-key">${t(STEP_META_KEYS[idx])}</span>
         <span class="sum-val">${stepValueLabel(idx)}</span>
       </div>`).join('');
   }
   const sub = q('#ph-sub');
-  if (sub) sub.textContent = NEXT_PROMPTS[Math.min(doneSteps.size, NEXT_PROMPTS.length - 1)];
+  if (sub) sub.textContent = t(NEXT_PROMPT_KEYS[Math.min(doneSteps.size, NEXT_PROMPT_KEYS.length - 1)]);
 }
 
 // ============================================================
@@ -338,7 +342,8 @@ function refreshNoteGrid() {
 }
 
 function buildScaleGrid(groupIdx: number): string {
-  return SCALE_GROUPS[groupIdx].scales.map(s => `
+  const groups = getScaleGroups();
+  return groups[groupIdx].scales.map(s => `
     <button class="scale-btn ${s.type === state.scaleType ? 'selected' : ''}"
       data-action="set-scale" data-group="scale" data-value="${s.type.displayName}"
       aria-pressed="${s.type === state.scaleType}">
@@ -348,7 +353,8 @@ function buildScaleGrid(groupIdx: number): string {
 }
 
 function buildScaleTabs(): string {
-  return SCALE_GROUPS.map((g, i) => `
+  const groups = getScaleGroups();
+  return groups.map((g, i) => `
     <button class="scale-tab ${i === state.scaleGroup ? 'active' : ''}"
       data-action="scale-tab" data-value="${i}" aria-selected="${i === state.scaleGroup}">
       ${g.label}
@@ -360,7 +366,7 @@ function buildFormPresets(): string {
     <button class="form-chip ${f.id === state.formPreset ? 'selected' : ''}"
       data-action="set-form" data-group="form" data-value="${f.id}"
       aria-pressed="${f.id === state.formPreset}">
-      <span class="form-chip-label">${f.label}</span>
+      <span class="form-chip-label">${t(f.labelKey)}</span>
       ${f.hint ? `<span class="form-chip-value">${f.hint}</span>` : ''}
     </button>`).join('');
 }
@@ -371,8 +377,8 @@ function buildStyleGrid(): string {
       data-action="set-style" data-group="style" data-value="${s.key}"
       aria-pressed="${s.key === state.style}">
       <span class="sc-icon">${s.icon}</span>
-      <span class="sc-title">${s.label}</span>
-      <span class="sc-detail">${s.desc}</span>
+      <span class="sc-title">${t(s.labelKey)}</span>
+      <span class="sc-detail">${t(s.descKey)}</span>
     </button>`).join('');
 }
 
@@ -381,7 +387,7 @@ function buildComplexityControl(): string {
     <button class="seg-btn ${c.key === state.complexity ? 'selected' : ''}"
       data-action="set-complexity" data-group="complexity" data-value="${c.key}"
       aria-pressed="${c.key === state.complexity}">
-      <span class="seg-label">${c.label}</span>
+      <span class="seg-label">${t(c.labelKey)}</span>
       <span class="seg-sub">${c.sub}</span>
     </button>`).join('');
 }
@@ -391,13 +397,13 @@ function buildModulationControl(): string {
     <button class="seg-btn ${m.key === state.modulation ? 'selected' : ''}"
       data-action="set-modulation" data-group="modulation" data-value="${m.key}"
       aria-pressed="${m.key === state.modulation}">
-      <span class="seg-label">${m.label}</span>
-      <span class="seg-sub">${m.sub}</span>
+      <span class="seg-label">${t(m.labelKey)}</span>
+      <span class="seg-sub">${t(m.subKey)}</span>
     </button>`).join('');
 }
 
 // ============================================================
-// FULL APP HTML (built once on init)
+// FULL APP HTML (built once on init, rebuilt on language switch)
 // ============================================================
 
 function stepHead(n: string, title: string, sub: string): string {
@@ -413,17 +419,22 @@ function stepHead(n: string, title: string, sub: string): string {
 }
 
 function buildAppHTML(): string {
+  const locale = getLocale();
   return `
 <div class="jh-wrap">
   <header class="jh-header">
+    <div class="lang-toggle" role="group" aria-label="${t('langLabel')}">
+      <button class="lang-btn ${locale === 'en' ? 'active' : ''}" data-action="set-lang" data-value="en" aria-pressed="${locale === 'en'}">EN</button>
+      <button class="lang-btn ${locale === 'it' ? 'active' : ''}" data-action="set-lang" data-value="it" aria-pressed="${locale === 'it'}">IT</button>
+    </div>
     <div class="jh-logo">
       <span class="logo-note">♩</span>
       <span class="logo-text">J-Harmonix</span>
     </div>
-    <p class="jh-tagline">Professional Jazz Harmony Generator</p>
+    <p class="jh-tagline">${t('tagline')}</p>
     <div class="jh-progress">
       <div class="jh-progress-track"><div class="jh-progress-fill" id="progress-fill"></div></div>
-      <span class="jh-progress-label" id="progress-label">0 of ${TOTAL_STEPS} configured</span>
+      <span class="jh-progress-label" id="progress-label">0 ${t('progressOf')} ${TOTAL_STEPS} ${t('progressConfigured')}</span>
     </div>
   </header>
 
@@ -433,68 +444,68 @@ function buildAppHTML(): string {
 
       <!-- Step 1: Key Center -->
       <section class="step-section revealed" data-step="0">
-        ${stepHead('01', 'Key Center', 'The tonic note your progression revolves around')}
-        <div class="note-grid" role="group" aria-label="Select tonic note">
+        ${stepHead('01', t('step1Title'), t('step1Sub'))}
+        <div class="note-grid" role="group" aria-label="${t('ariaSelectNote')}">
           ${buildNoteGrid()}
         </div>
         <div class="notation-row" id="notation-row">
-          <span class="notation-label">Notation</span>
-          <div class="notation-toggle" role="group" aria-label="Accidental preference">
-            <button class="notation-btn" data-action="set-accidental" data-value="sharp" aria-pressed="false">♯&nbsp;Sharps</button>
-            <button class="notation-btn" data-action="set-accidental" data-value="flat" aria-pressed="false">♭&nbsp;Flats</button>
+          <span class="notation-label">${t('notationLabel')}</span>
+          <div class="notation-toggle" role="group" aria-label="${t('ariaAccidental')}">
+            <button class="notation-btn" data-action="set-accidental" data-value="sharp" aria-pressed="false">${t('notationSharps')}</button>
+            <button class="notation-btn" data-action="set-accidental" data-value="flat" aria-pressed="false">${t('notationFlats')}</button>
           </div>
-          <span class="notation-hint">how the chords are spelled</span>
+          <span class="notation-hint">${t('notationHint')}</span>
         </div>
       </section>
 
       <!-- Step 2: Scale -->
       <section class="step-section" data-step="1">
-        ${stepHead('02', 'Scale', 'Interval structure — shapes the harmonic colour')}
+        ${stepHead('02', t('step2Title'), t('step2Sub'))}
         <div class="scale-tabs" role="tablist" id="scale-tabs">
           ${buildScaleTabs()}
         </div>
-        <div class="scale-grid" id="scale-grid" role="group" aria-label="Select scale">
+        <div class="scale-grid" id="scale-grid" role="group" aria-label="${t('ariaSelectScale')}">
           ${buildScaleGrid(state.scaleGroup)}
         </div>
       </section>
 
       <!-- Step 3: Song Form -->
       <section class="step-section" data-step="2">
-        ${stepHead('03', 'Song Form', 'The structural blueprint of your composition')}
-        <div class="form-presets" role="group" aria-label="Select song form">
+        ${stepHead('03', t('step3Title'), t('step3Sub'))}
+        <div class="form-presets" role="group" aria-label="${t('ariaSelectForm')}">
           ${buildFormPresets()}
         </div>
         <div class="form-custom-wrap ${state.formPreset === 'custom' ? 'visible' : ''}" id="form-custom-wrap">
           <label class="form-custom-label" for="form-custom-input">
-            Enter section letters (e.g. <strong>AABA</strong>) or names (e.g. <strong>verse-chorus-bridge</strong>)
+            ${t('formCustomLabelHtml')}
           </label>
           <input id="form-custom-input" class="form-custom-input" type="text"
-            placeholder="AABA or verse-chorus-bridge-chorus"
+            placeholder="${t('formCustomPlaceholder')}"
             value="${state.formCustom}" autocomplete="off" spellcheck="false" />
-          <p class="form-custom-hint">Letters A-Z map to sections · Use hyphens for named sections</p>
+          <p class="form-custom-hint">${t('formCustomHint')}</p>
         </div>
       </section>
 
       <!-- Step 4: Harmony Style -->
       <section class="step-section" data-step="3">
-        ${stepHead('04', 'Harmony Style', 'Jazz sophistication level — from folk to modern jazz')}
-        <div class="style-grid" role="group" aria-label="Select harmony style">
+        ${stepHead('04', t('step4Title'), t('step4Sub'))}
+        <div class="style-grid" role="group" aria-label="${t('ariaSelectStyle')}">
           ${buildStyleGrid()}
         </div>
       </section>
 
       <!-- Step 5: Complexity -->
       <section class="step-section" data-step="4">
-        ${stepHead('05', 'Chord Complexity', 'Maximum voicing density — how many notes per chord')}
-        <div class="seg-control" role="group" aria-label="Select chord complexity">
+        ${stepHead('05', t('step5Title'), t('step5Sub'))}
+        <div class="seg-control" role="group" aria-label="${t('ariaSelectComplexity')}">
           ${buildComplexityControl()}
         </div>
       </section>
 
       <!-- Step 6: Modulation -->
       <section class="step-section" data-step="5">
-        ${stepHead('06', 'Key Modulation', 'How often and how adventurously the key changes')}
-        <div class="seg-control" role="group" aria-label="Select modulation frequency">
+        ${stepHead('06', t('step6Title'), t('step6Sub'))}
+        <div class="seg-control" role="group" aria-label="${t('ariaSelectModulation')}">
           ${buildModulationControl()}
         </div>
       </section>
@@ -503,9 +514,9 @@ function buildAppHTML(): string {
       <div class="generate-area">
         <button id="generate-btn" class="generate-btn" data-action="generate">
           <span class="generate-icon">♫</span>
-          <span>Generate Progression</span>
+          <span>${t('generateBtn')}</span>
         </button>
-        <p class="generate-hint">Press Enter or Space to generate</p>
+        <p class="generate-hint">${t('generateHint')}</p>
       </div>
     </div>
 
@@ -514,9 +525,9 @@ function buildAppHTML(): string {
       <div id="output-zone">
         <div class="output-placeholder">
           <div class="ph-icon">♩</div>
-          <p class="ph-title">Building your progression…</p>
+          <p class="ph-title">${t('phTitle')}</p>
           <div class="setup-summary" id="setup-summary"></div>
-          <p class="ph-sub" id="ph-sub">${NEXT_PROMPTS[0]}</p>
+          <p class="ph-sub" id="ph-sub">${t('prompt0')}</p>
         </div>
       </div>
     </div>
@@ -535,7 +546,8 @@ function currentFormValue(): string {
 
 function renderOutput(progressions: Progression[], seed: number): string {
   const formValue = currentFormValue();
-  const styleName = STYLE_OPTIONS.find(s => s.key === state.style)?.label ?? state.style;
+  const styleOpt  = STYLE_OPTIONS.find(s => s.key === state.style);
+  const styleName = styleOpt ? t(styleOpt.labelKey) : String(state.style);
   const useFlats  = resolvedUseFlats();
   const key       = KeySignature.of(state.tonic!, state.scaleType!);
   const keyLabel  = `${pretty(key.spellWith(key.tonic, useFlats))} ${state.scaleType!.displayName.toUpperCase()}`;
@@ -551,8 +563,8 @@ function renderOutput(progressions: Progression[], seed: number): string {
         <span class="banner-style">${styleName}</span>
       </div>
       <div class="banner-actions">
-        <button class="btn-act" data-action="copy">Copy</button>
-        <button class="btn-act primary" data-action="regenerate">↺ New</button>
+        <button class="btn-act" data-action="copy">${t('copyBtn')}</button>
+        <button class="btn-act primary" data-action="regenerate">${t('regenerateBtn')}</button>
       </div>
     </div>`;
 
@@ -572,8 +584,8 @@ function renderOutput(progressions: Progression[], seed: number): string {
     return `
       <div class="section-card">
         <div class="sec-header">
-          <span class="sec-name">${prog.sectionLabel || 'Section'}</span>
-          <span class="sec-bars">${prog.size} chords</span>
+          <span class="sec-name">${prog.sectionLabel || t('sectionDefault')}</span>
+          <span class="sec-bars">${prog.size} ${t('chords')}</span>
         </div>
         <div class="chord-row">${chips}</div>
       </div>`;
@@ -581,7 +593,7 @@ function renderOutput(progressions: Progression[], seed: number): string {
 
   const seedInfo = `
     <div class="seed-info">
-      <span class="seed-label">Seed</span>
+      <span class="seed-label">${t('seedLabel')}</span>
       <span class="seed-value">${seed}</span>
     </div>`;
 
@@ -643,7 +655,7 @@ function generate(seed?: number) {
       const zone = q('#output-zone')!;
       zone.innerHTML = `<div class="output-placeholder">
         <div class="ph-icon" style="color:var(--danger)">⚠</div>
-        <p class="ph-title" style="color:var(--danger)">Generation error</p>
+        <p class="ph-title" style="color:var(--danger)">${t('errorTitle')}</p>
         <p class="ph-sub">${String(err)}</p>
       </div>`;
     } finally {
@@ -657,9 +669,40 @@ function copyOutput() {
   if (!lastProgressions.length) return;
   const text = buildPlainText(lastProgressions);
   navigator.clipboard.writeText(text).then(
-    () => showToast('Progression copied to clipboard'),
-    () => showToast('Copy not available — try Ctrl+A, Ctrl+C'),
+    () => showToast(t('toastCopied')),
+    () => showToast(t('toastCopyFail')),
   );
+}
+
+// ============================================================
+// STATE REHYDRATION (after language switch)
+// ============================================================
+
+/** Restore CSS classes and dynamic content after a full HTML rebuild. */
+function rehydrateState() {
+  const sections = qa('.step-section');
+
+  sections.forEach((sec, i) => {
+    if (i < state.revealed) sec.classList.add('revealed');
+    if (doneSteps.has(i)) {
+      sec.classList.add('completed');
+      const badge = sec.querySelector('.step-value') as HTMLElement | null;
+      if (badge) badge.textContent = stepValueLabel(i);
+    }
+  });
+
+  if (state.revealed >= sections.length) q('.generate-area')?.classList.add('revealed');
+  if (state.tonic)                        q('#notation-row')?.classList.add('revealed');
+  if (state.formPreset === 'custom')       q('#form-custom-wrap')?.classList.add('visible');
+
+  updateNotationToggle();
+  updateProgress();
+  updateSummary();
+
+  if (lastProgressions.length) {
+    const zone = q('#output-zone');
+    if (zone) zone.innerHTML = renderOutput(lastProgressions, state.lastSeed);
+  }
 }
 
 // ============================================================
@@ -785,9 +828,17 @@ function setupEvents(app: HTMLElement) {
         completeStep(5);
         break;
       }
-      case 'generate':    generate();                 break;
-      case 'regenerate':  generate();                 break;
-      case 'copy':        copyOutput();               break;
+      case 'generate':   generate();   break;
+      case 'regenerate': generate();   break;
+      case 'copy':       copyOutput(); break;
+      case 'set-lang': {
+        if (value === 'en' || value === 'it') {
+          setLocale(value as Locale);
+          app.innerHTML = buildAppHTML();
+          rehydrateState();
+        }
+        break;
+      }
     }
   });
 }
@@ -797,6 +848,7 @@ function setupEvents(app: HTMLElement) {
 // ============================================================
 
 function init() {
+  document.documentElement.lang = getLocale();
   const app = document.getElementById('app')!;
   app.innerHTML = buildAppHTML();
   setupEvents(app);
