@@ -315,13 +315,26 @@ function updateSummary() {
 // ============================================================
 
 function buildNoteGrid(): string {
-  return NOTES.map(n => `
+  const useFlats = resolvedUseFlats();
+  return NOTES.map(n => {
+    const isBlack = !!FLAT_ALT[n];
+    // Main label follows the ♯/♭ preference; the small alt shows the other spelling.
+    const main = useFlats && isBlack ? FLAT_ALT[n] : SHARP_DISP[n];
+    const alt  = isBlack ? (useFlats ? SHARP_DISP[n] : FLAT_ALT[n]) : '';
+    return `
     <button class="note-btn ${IS_SHARP[n] ? 'accidental' : 'natural'} ${n === state.tonic ? 'selected' : ''}"
       data-action="set-note" data-group="note" data-value="${n}"
       aria-label="${n}${FLAT_ALT[n] ? ` / ${FLAT_ALT[n]}` : ''}" aria-pressed="${n === state.tonic}">
-      <span class="nb-main">${SHARP_DISP[n]}</span>
-      ${FLAT_ALT[n] ? `<span class="nb-alt">${FLAT_ALT[n]}</span>` : ''}
-    </button>`).join('');
+      <span class="nb-main">${main}</span>
+      ${alt ? `<span class="nb-alt">${alt}</span>` : ''}
+    </button>`;
+  }).join('');
+}
+
+/** Re-render the note grid so its labels reflect the current ♯/♭ preference. */
+function refreshNoteGrid() {
+  const grid = q('.note-grid');
+  if (grid) grid.innerHTML = buildNoteGrid();
 }
 
 function buildScaleGrid(groupIdx: number): string {
@@ -694,11 +707,13 @@ function setupEvents(app: HTMLElement) {
         // Reveal the ♯/♭ notation toggle now that there is a key to spell.
         q('#notation-row')?.classList.add('revealed');
         updateNotationToggle();
+        refreshNoteGrid();
         break;
       }
       case 'set-accidental': {
         state.accidental = value as 'sharp' | 'flat';
         updateNotationToggle();
+        refreshNoteGrid();
         // Refresh the key badge, the live summary and any shown progression.
         if (doneSteps.has(0)) {
           const badge = qa('.step-section')[0]?.querySelector('.step-value') as HTMLElement | null;
@@ -720,9 +735,10 @@ function setupEvents(app: HTMLElement) {
           setSelected('scale', value);
           completeStep(1);
           // In auto mode the flat/sharp default can flip (e.g. minor keys);
-          // keep the toggle highlight and the key badge in sync.
+          // keep the toggle highlight, the note grid and the key badge in sync.
           if (state.accidental === null) {
             updateNotationToggle();
+            refreshNoteGrid();
             const badge = qa('.step-section')[0]?.querySelector('.step-value') as HTMLElement | null;
             if (badge && doneSteps.has(0)) badge.textContent = stepValueLabel(0);
             updateSummary();
